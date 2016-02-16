@@ -171,6 +171,33 @@ case $DMS_SSL in
     fi
     ;;
 
+  "custom-cert" )
+    echo "/tmp/postfix/ssl/$(hostname)-cert.pem"
+    # Adding self-signed SSL certificate if provided in 'postfix/ssl' folder
+    if [ -e "/tmp/postfix/ssl/$(hostname)-cert.pem" ] \
+    && [ -e "/tmp/postfix/ssl/$(hostname)-key.pem"  ]; then
+      echo "Adding $(hostname) custom SSL certificate"
+      mkdir -p /etc/postfix/ssl
+      cp "/tmp/postfix/ssl/$(hostname)-cert.pem" /etc/postfix/ssl
+      cp "/tmp/postfix/ssl/$(hostname)-key.pem" /etc/postfix/ssl
+      cat "/etc/postfix/ssl/$(hostname)-cert.pem" "/etc/postfix/ssl/$(hostname)-key.pem" > "/etc/postfix/ssl/$(hostname)-combined.pem"
+      
+      # Postfix configuration
+      sed -i -r 's/smtpd_tls_cert_file=\/etc\/ssl\/certs\/ssl-cert-snakeoil.pem/smtpd_tls_cert_file=\/etc\/postfix\/ssl\/'$(hostname)'-cert.pem/g' /etc/postfix/main.cf
+      sed -i -r 's/smtpd_tls_key_file=\/etc\/ssl\/private\/ssl-cert-snakeoil.key/smtpd_tls_key_file=\/etc\/postfix\/ssl\/'$(hostname)'-key.pem/g' /etc/postfix/main.cf
+
+      # Courier configuration
+      sed -i -r 's/TLS_CERTFILE=\/etc\/courier\/imapd.pem/TLS_CERTFILE=\/etc\/postfix\/ssl\/'$(hostname)'-combined.pem/g' /etc/courier/imapd-ssl
+
+      # POP3 courier configuration
+      sed -i -r 's/POP3_TLS_REQUIRED=0/POP3_TLS_REQUIRED=1/g' /etc/courier/pop3d-ssl
+      sed -i -r 's/TLS_CERTFILE=\/etc\/courier\/pop3d.pem/TLS_CERTFILE=\/etc\/postfix\/ssl\/'$(hostname)'-combined.pem/g' /etc/courier/pop3d-ssl
+
+      echo "SSL configured with custom certificates"
+
+    fi
+    ;;
+
 esac
 
 echo "Fixing permissions"
